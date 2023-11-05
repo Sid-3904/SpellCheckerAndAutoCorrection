@@ -12,7 +12,8 @@
 int main() {
     TRIE_NODE* root=createNode(); // creating Trie node
     bool* filter = calloc(FILTER_SIZE, sizeof(bool)); // creating bloom filter bit array
-    loadDictionary(dict_file, filter, root); // populating both trie and bloom filter with dictionary words
+    loadDictionary(filter, root); // populating both trie and bloom filter with dictionary words
+    FILE *dict = fopen(DICT_FILE, "r");
 
     int ch; // choice mode of user 
     char str[100]; // string for storing users sentence input 
@@ -83,7 +84,7 @@ int main() {
                     printf(COLOR_MAGENTA "\nSuggestions for incorrect words:\n" COLOR_RESET);
                     for (int i = 0; i < incrt_words; i++){
                         printf(COLOR_RED "%d. %s -> " COLOR_RESET, i + 1, display_suggest[i]);
-                        suggest(display_suggest[i], cache);
+                        suggest(display_suggest[i], cache, dict);
                     }
                 }
                 printf("\n");
@@ -94,7 +95,11 @@ int main() {
             num_comp=0;
             time_used_trie=0;
             time_used_filter=0;
-            file = fopen(input_file, "r");
+            file = fopen(PARA_FILE, "r");
+            if(file == NULL) {
+                perror(COLOR_RED "Error opening the file" COLOR_RESET);
+                return 0;
+            }
             while (fscanf(file, "%s", word) == 1){
                 removeNonAlphabetical(word);
 
@@ -139,11 +144,12 @@ int main() {
             }
             for(int i=0; i<N_THREADS; i++) pthread_join(threads[i], NULL);
             printf(COLOR_GREEN "%d Incorrect words found in text.\n" COLOR_RESET, suggest_count);
-            for(int i=0; i<MAX_SUGGEST_COUNT; i++) {
-                printf(COLOR_RED "%s-> " COLOR_RESET, suggestions[i]);
-                suggest(suggestions[i], cache);
+            for(int i=0; i<suggest_count; i++) {
+                printf(COLOR_RED "%d. %s-> " COLOR_RESET, i+1, suggestions[i]);
+                suggest(suggestions[i], cache, dict);
                 printf("\n");
             }
+            suggest_count = 0;
             for(int i=0; i<MAX_SUGGEST_COUNT; i++) free(suggestions[i]);
             free(suggestions);
         }
@@ -151,6 +157,6 @@ int main() {
         else printf("Invalid value!\n");
         printf("\n");
     }
-    
+
     return 0;
 }

@@ -1,18 +1,16 @@
-// # include <pthread.h>
-
-char *dict_file = "dictionary.txt";
-char *input_file = "input.txt";
-
 int suggest_count = 0;
-// dictionary file name
+
+// file name
 #define DICT_FILE "dictionary.txt"
 #define PARA_FILE "input.txt"
 
+// multithreading parameters
 #define N_THREADS 10
+
 #define MAX_SUGGEST_COUNT 500
 
-#define FILTER_SIZE 10000000 // sizeof bit array used for bloom filter
-#define K 5 //7     // number of hash functions
+#define FILTER_SIZE 3600000 // sizeof bit array used for bloom filter
+#define K 7 // number of hash functions
 
 #define MAX_LENGTH 50 // maximum length of a word in a dictionary
 #define MAX_SUGGESTIONS 10 // maximum suggestions to feed for incorrect words
@@ -129,48 +127,39 @@ void display(TRIE_NODE* root, char* word, int level){
     }
 }
 
-typedef struct filter_args {
-    char* dict;
-    bool* filter;
-} FILTER_ARGS;
-
-typedef struct trie_args {
-    char* dict;
-    TRIE_NODE* root;
-} TRIE_ARGS;
-
-void* filterThread(void* arg) {
+void* filterThread(void* filter) {
     char word[50];      // maximum word lenght
-    FILTER_ARGS* args = (FILTER_ARGS*) arg;
-    char* dict_file = args->dict;
-    FILE* dict_ptr = fopen(dict_file, "r");
-    bool* filter = args->filter;
-    while(fscanf(dict_ptr, "%s", word) != EOF) insertFilter(filter, word);
+    FILE* dict_ptr = fopen(DICT_FILE, "r");
+    if(dict_ptr == NULL) {
+        perror(COLOR_RED "Error loading Dictionary\n" COLOR_RESET);
+        exit(1);
+    }
+    while(fscanf(dict_ptr, "%s", word) != EOF) insertFilter((bool*) filter, word);
     printf(COLOR_GREEN "Dictionary loaded on filter successfully\n" COLOR_RESET);
+    fclose(dict_ptr);
     return NULL;
 }
 
-void* trieThread(void* arg) {
+void* trieThread(void* root) {
     char word[50];      // maximum word lenght
-    TRIE_ARGS* args = (TRIE_ARGS*) arg;
-    char* dict_file = args->dict;
-    FILE* dict_ptr = fopen(dict_file, "r");
-    TRIE_NODE* root = args->root;
-    while(fscanf(dict_ptr, "%s", word) != EOF) insertTrie(root, word);
+    FILE* dict_ptr = fopen(DICT_FILE, "r");
+    if(dict_ptr == NULL) {
+        perror(COLOR_RED "Error loading Dictionary or wrong path/file for dictionary\n" COLOR_RESET);
+        exit(1);
+    }
+    while(fscanf(dict_ptr, "%s", word) != EOF) insertTrie((TRIE_NODE*) root, word);
     printf(COLOR_GREEN "Dictionary loaded on trie successfully\n" COLOR_RESET);
+    fclose(dict_ptr);
     return NULL;
 }
 
-// Populating Bloom Filter and Trie with Dictionary words with multithreading
-void loadDictionary(char* dict_file, bool* filter, TRIE_NODE* root) {
+// populating bloom filter and trie with Dictionary words
+void loadDictionary(bool* filter, TRIE_NODE* root) {
     pthread_t filter_thread, trie_thread;
-    FILTER_ARGS filter_args = {dict_file, filter};
-    TRIE_ARGS trie_args = {dict_file, root};
-    if(pthread_create(&filter_thread, NULL, filterThread, &filter_args) & pthread_create(&trie_thread, NULL, trieThread, &trie_args)) printf(COLOR_RED "Error occured in threading\n" COLOR_RESET);
+    if(pthread_create(&filter_thread, NULL, filterThread, filter) & pthread_create(&trie_thread, NULL, trieThread, root)) printf(COLOR_RED "Error occured in threading\n" COLOR_RESET);
     if(pthread_join(filter_thread, NULL) & pthread_join(trie_thread, NULL)) printf(COLOR_RED "Error occured in threading\n" COLOR_RESET);
-    filter = filter_args.filter;
-    root = trie_args.root;
 }
+
 
 // Levenshtein edit distance between two words s and t
 int levenshteinDistance(const char *s, const char *t){
@@ -380,14 +369,12 @@ void removeNonAlphabetical(char *word) {
 }
 
 // To return a list of MAX_SUGGESTIONS words for an incorrect word
-void suggest(char *word, struct LRUCache* obj){
-
+void suggest(char *word, struct LRUCache* obj, FILE* dict_ptr){
+    fseek(dict_ptr, 0, SEEK_SET);
     char dict_word[MAX_LENGTH + 1];
-
     double tempJaroWinklerValue = 0;
     int tempLevenshteinValue = INT_MAX;
-    FILE *file = fopen(dict_file, "r");
-    while (fscanf(file, "%s", dict_word) != EOF){
+    while (fscanf(dict_ptr, "%s", dict_word) != EOF){
         int distance = levenshteinDistance(word, dict_word);
         double jaroWinklerValue = jaroWinklerDistance(word, dict_word);
         if (distance < tempLevenshteinValue){
@@ -399,7 +386,6 @@ void suggest(char *word, struct LRUCache* obj){
             lRUCachePut(obj, dict_word);
         }
     }
-    fclose(file);
     printQueue(obj);
 }
 
@@ -409,7 +395,6 @@ bool checkWord(TRIE_NODE* root, bool* filter, char *word){
     if (!searchTrie(root, word)) return false;
     return true;
 }
-
 
 typedef struct suggest_thread {
     int thread_num;
