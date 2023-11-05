@@ -31,9 +31,10 @@ int main() {
     FILE *file;
 
     struct LRUCache* cache=createLRUCache(MAX_SUGGESTIONS); // first LRU Cache to store and update the suggestions given by suggest algorithm
+    struct LRUCache* cache2=createLRUCache(MAX_SUGGESTIONS); // for storing frequent/least recent words in input file for O(1) spell checking
 
     while (1){
-        printf(COLOR_YELLOW "Select the mode you want to enter:-\n1. Spell checking and autocorrect\n2. Analysis mode\n3. Optimisation mode\n4. Quit\n" COLOR_RESET);
+        printf(COLOR_YELLOW "Select the mode you want to enter:-\n1. Spell checking and autocorrect\n2. Analysis mode\n3. Optimisation using multithreading\n4. Optimisation using caching\n5. Quit\n" COLOR_RESET);
         scanf("%d", &ch);
         getchar();
         if (ch==1){
@@ -153,7 +154,25 @@ int main() {
             for(int i=0; i<MAX_SUGGEST_COUNT; i++) free(suggestions[i]);
             free(suggestions);
         }
-        else if (ch==4) break;
+        else if (ch==4){
+            FILE *file;
+            file = fopen(PARA_FILE, "r");
+            printf(COLOR_MAGENTA "The incorrect words in the file and their suggestions are:-\n" COLOR_RESET);
+            while (fscanf(file, "%s", word) == 1){
+                removeNonAlphabetical(word);
+                struct LRUCacheMapNode* temp=searchCache(cache2, str);
+                if (temp==NULL){
+                    if (!checkWord(root, filter, word)){
+                        printf(COLOR_RED "%s -> " COLOR_RESET, word);
+                        suggest2(word, cache);
+                    }
+                    else lRUCachePut(cache2, word);
+                }
+                else LRUCacheGet(cache2, temp);
+            }
+            fclose(file);
+        }
+        else if (ch==5) break;
         else printf("Invalid value!\n");
         printf("\n");
     }

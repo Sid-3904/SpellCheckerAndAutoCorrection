@@ -389,6 +389,29 @@ void suggest(char *word, struct LRUCache* obj, FILE* dict_ptr){
     printQueue(obj);
 }
 
+void suggest2(char *word, struct LRUCache* obj){
+
+    char dict_word[MAX_LENGTH + 1];
+
+    double tempJaroWinklerValue = 0;
+    int tempLevenshteinValue = INT_MAX;
+    FILE *file = fopen(DICT_FILE, "r");
+    while (fscanf(file, "%s", dict_word) != EOF){
+        int distance = levenshteinDistance(word, dict_word);
+        double jaroWinklerValue = jaroWinklerDistance(word, dict_word);
+        if (distance < tempLevenshteinValue){
+            tempLevenshteinValue=distance;
+            lRUCachePut(obj, dict_word);
+        }
+        else if (distance == tempLevenshteinValue && jaroWinklerValue >= tempJaroWinklerValue){
+            tempJaroWinklerValue=jaroWinklerValue;
+            lRUCachePut(obj, dict_word);
+        }
+    }
+    fclose(file);
+    printQueue(obj);
+}
+
 // To check if word is present in dictionary or not
 bool checkWord(TRIE_NODE* root, bool* filter, char *word){
     if (!searchFilter(filter, word)) return false;
